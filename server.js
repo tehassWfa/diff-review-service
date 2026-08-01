@@ -291,8 +291,18 @@ const server = http.createServer((req, res) => {
     return sendError(res, 400, 'invalid_json', 'Malformed URL');
   }
 
-  if (req.method === 'GET' && pathname === '/health') return handleHealth(res);
-  if (req.method === 'GET' && pathname === '/spec') return handleSpec(res);
+  // Normalize a trailing slash (e.g. "/health/" -> "/health") so monitoring
+  // tools that append one don't get a spurious 404. Root "/" is untouched.
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    pathname = pathname.slice(0, -1);
+  }
+
+  // Health/status checkers commonly send HEAD instead of GET to save
+  // bandwidth. Treat HEAD like GET for the public health/spec endpoints.
+  const method = req.method === 'HEAD' ? 'GET' : req.method;
+
+  if (method === 'GET' && pathname === '/health') return handleHealth(res);
+  if (method === 'GET' && pathname === '/spec') return handleSpec(res);
 
   if (pathname.startsWith('/v1/')) {
     if (!checkAuth(req)) {
