@@ -1,0 +1,14 @@
+{
+  "name": "ai-diff-review-service",
+  "version": "1.0.0",
+  "description": "AI diff review service (mock + llm providers) implementing the take-home API contract.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/run.js"
+  },
+  "license": "UNLICENSED"
+}
