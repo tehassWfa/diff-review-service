@@ -46,16 +46,38 @@ separately by firing 35 rapid submissions and confirming exactly 30
 succeeded with `Retry-After` present on the rejected ones. All of this is
 re-runnable: `node test/run.js` against any running instance.
 
-*[Candidate: if you changed the deployment target or added anything past
-what's described here, note how you verified it against the deployed URL
-specifically, not just localhost.]*
+Deployed to Render (Node runtime, free tier). After deploy, re-verified
+against the live URL specifically (not just localhost): `GET /spec` matches
+the declared limits, an authenticated `POST /v1/reviews` against a real diff
+returns `202` with a `jobId`, polling `GET /v1/reviews/{id}` reaches
+`status: done` with the expected `MOCK-007` finding, and a repeat submission
+of the same diff returns `cacheHit: true` — confirming the deployed instance
+behaves identically to the local dev server, not just that it boots.
+
+I also verified the `llm` path end to end against the live deployment, per
+the task's explicit ask to confirm this before submitting. I configured
+`LLM_API_KEY`/`LLM_MODEL`/`LLM_BASE_URL`/`LLM_API_STYLE` to point at Google's
+Gemini API (`gemini-3.6-flash`) via its OpenAI-compatible endpoint — a
+deliberate choice since Gemini's free tier requires no billing setup, and
+the task states model sourcing is up to the candidate. This required one
+small code addition: `lib/llmProvider.js` originally only spoke Anthropic's
+Messages API request/response shape, so I added a second caller for the
+OpenAI-compatible chat-completions shape (selected via `LLM_API_STYLE`),
+which Gemini, OpenAI itself, and other compatible vendors all support. A
+real request against the live URL with `options.provider: "llm"` returned
+`status: done` with a well-formed finding (`LLM:f.ts:2:Unexpected console
+statement`, correct path/line/evidence) — confirming the full pipeline
+(auth -> parse -> real model call -> response validation -> job store)
+works against an actual model, not just the documented graceful-failure
+path.
 
 ## AI tools used
 
 Built with Claude (Anthropic) as an AI pair-programmer for the full
 implementation — diff parser, rule engine, chunking, job store/SSE event
-log, concurrency queue, rate limiter, and the test suite — plus this
-document.
+log, concurrency queue, rate limiter, the test suite, and later the
+OpenAI-compatible caller added to support the `llm` provider against
+Gemini — plus this document.
 
 ## An AI suggestion I rejected
 
@@ -86,4 +108,7 @@ under an actual request" bug.
 - Add streaming/partial LLM parsing so very large diffs to the `llm`
   provider don't wait on one big completion.
 
-*[Candidate: add your own priorities here if they differ.]*
+If I had more time before the deadline, I'd also add a keep-alive ping so
+the free-tier host doesn't cold-start on the first request of the scoring
+window, and I'd extend the `llm` provider's prompt/validation with a retry
+on malformed model output rather than dropping it silently.
